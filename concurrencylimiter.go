@@ -8,21 +8,17 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/base64"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	random "math/rand"
-	"mime"
 	"net"
 	"net/http"
 	"net/rpc"
-	"strings"
 	"sync"
 	"time"
 
 	"github.com/atdiar/xhttp"
-	"github.com/atdiar/xhttp/handlers/session"
 )
 
 var (
@@ -205,7 +201,7 @@ func (b Bottleneck) ExchangeTicket(t Ticket) Ticket {
 	return t
 }
 
-//
+/*
 type HttpServer struct {
 	Name string
 	mu   *sync.Mutex
@@ -526,6 +522,7 @@ func (h HttpServer) ExchangeTicket(bottleneckID string, t Ticket) (Ticket, error
 	}
 	return h.List[bottleneckID].ExchangeTicket(t), nil
 }
+*/
 
 type RPCHandler struct {
 	mu          *sync.Mutex
@@ -610,7 +607,7 @@ type Server struct {
 	*http.Server
 }
 
-func NewRPCServer(serverid string, path string, r RPCHandler, configs ...func(Server) Server) Server {
+func NewRPCServer(serverid string, path string, configs ...func(Server) Server) Server {
 	var s Server
 	var err error
 	s.ID = serverid
@@ -625,12 +622,12 @@ func NewRPCServer(serverid string, path string, r RPCHandler, configs ...func(Se
 		s = config(s)
 	}
 
-	err = s.RPC.RegisterName("rpc", r)
+	err = s.RPC.RegisterName("rpc", NewRPCHandler())
 	if err != nil {
 		panic(err)
 	}
-	s.Mux.CONNECT(s.Path, s.Middleware.Link(xhttp.HandlerFunc(func(ctx context.Context, w http.ResponseWriter, req *http.Request) {
-		s.RPC.ServeHTTP(w, req) // it is used on initial dialup to hijack the connection and serve the RPC response
+	s.Mux.CONNECT(s.Path, s.Middleware.Link(xhttp.HandlerFunc(func(ctx context.Context, w http.ResponseWriter, r *http.Request) {
+		s.RPC.ServeHTTP(w, r) // it is used on initial dialup to hijack the connection and serve the RPC response
 	})))
 
 	s.Server.Handler = s.Mux
