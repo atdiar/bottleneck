@@ -8,6 +8,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -20,6 +21,8 @@ import (
 
 	"github.com/atdiar/xhttp"
 )
+
+// TODO Add a persistence layer that can load and store bottlenecks.
 
 var (
 	Receipt      = NewTicket("receipt", "Ok")
@@ -45,6 +48,21 @@ type Ticket struct {
 
 func NewTicket(name string, value string) Ticket {
 	return Ticket{name, value}
+}
+
+func (t Ticket) Winning() bool {
+	if t != LosingTicket && t != Receipt {
+		return true
+	}
+	return false
+}
+
+func (t Ticket) Marshal() ([]byte,error) {
+	return json.Marshal(t)
+}
+
+func(t *Ticket) UnMarshal(data []byte) error {
+	return json.Unmarshal(data, t) 
 }
 
 // Authority generates and keep a  winning ticket alive.
@@ -524,6 +542,7 @@ func (h HttpServer) ExchangeTicket(bottleneckID string, t Ticket) (Ticket, error
 }
 */
 
+// RPCHandler defines the handling of Remote-Procedure-Calls to a bottleneck network service.
 type RPCHandler struct {
 	mu          *sync.Mutex
 	Bottlenecks map[string]Bottleneck
@@ -607,6 +626,7 @@ type Server struct {
 	*http.Server
 }
 
+// NewRPCServer returns a new RPC server that is built on top of the http protocol.
 func NewRPCServer(serverid string, path string, configs ...func(Server) Server) Server {
 	var s Server
 	var err error
@@ -660,6 +680,7 @@ func WithServer(s *http.Server) func(Server) Server {
 //
 //
 
+// Ckient is a RPC client for communication with a bottleneck network service.
 type Client struct {
 	RPC     *rpc.Client
 	Connect *http.Request
@@ -728,6 +749,10 @@ func NewClient(ctx context.Context, address, path string, configs ...func(Client
 	return c, err
 }
 
+// WithConnectRequest is a client configuration function that enables the use
+// of a specific http connect request to the RPC server. For instance if
+// the connection requires specific authentication cookies on the server side,
+// we can append these cookies to a http.Request object begotrehand.
 func WithConnectRequest(r *http.Request) func(Client) Client {
 	return func(c Client) Client {
 		c.Connect = r
@@ -807,8 +832,8 @@ func (s set) Count() int {
 
 // RandomString creates a base64 encoded version of a 32byte Cryptographically
 // secure random number .
-// It uses Go's implementation of devurandom (which has a backup in case
-// devurandom is inaccessible)
+// It uses Go's implementation of devurandom and, in case fo failure, is backed
+// up by the time seeded psuedorandom function math/rand.
 func RandomString(length int) string {
 	bstr := make([]byte, length)
 	_, err := rand.Read(bstr)
